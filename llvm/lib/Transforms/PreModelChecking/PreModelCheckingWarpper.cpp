@@ -20,7 +20,7 @@ llvm::PreservedAnalyses PreModelChecking::PreModelCheckingWarpper::run(llvm::Mod
     lpm.add(llvm::createLowerSwitchPass());
     lpm.run(M);
  
-    // MPM.addPass(ConstExprRemover());
+    MPM.addPass(ConstExprRemover());
     MPM.addPass(RemoveUnusedInstructions());
     MPM.addPass(GetElementPtrSimplifier());
     MPM.run(M, MAM);

@@ -35,9 +35,15 @@ namespace PreModelChecking{
         
         llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM);
 
-        void runOnModule(llvm::Module &M);
+        llvm::ConstantExpr* hasConstantGEP (llvm::Value*  V);
 
-        void handle(llvm::Instruction* inst);
+        llvm::ConstantExpr* hasConstantBinaryOrUnaryOp (llvm::Value*  V);
+
+        llvm::ConstantExpr* hasConstantExpr (llvm::Value*  V);
+
+        llvm::Instruction* convertExpression (llvm::ConstantExpr * CE, llvm::Instruction*  InsertPt);
+
+        void runOnModule(llvm::Module &M);
 
         static bool isRequired() { return true; }
     };
