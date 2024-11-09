@@ -4,6 +4,10 @@
 llvm::PreservedAnalyses PreModelChecking::splitCalls::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
     llvm::outs() << "Base call instructions split BB...\n";
     for (llvm::Function& F : M) {
+        if (F.getName().str() == "_Z16dump_static_varsv") {
+            llvm::outs() << "split skip _Z16dump_static_varsv()...\n";
+            continue;
+        }
         splitCallSitesInBlock(&F);
     }
     return llvm::PreservedAnalyses::none();
