@@ -4,7 +4,7 @@ add_llvm_library( PreModelChecking MODULE
   ConstExprRemover.cpp
   RemoveUnusedInstructions.cpp
   GetElementPtrSimplifier.cpp
-  SplitCalls.cpp
+  # SplitCalls.cpp
   BBReNamer.cpp
   InCallIDMetaData.cpp
 

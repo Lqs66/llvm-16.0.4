@@ -34,7 +34,6 @@ llvm::PreservedAnalyses PreModelChecking::PreModelCheckingWarpper::run(llvm::Mod
         FPM.run(F, FAM);
     }
 
-    MPM2.addPass(splitCalls());
     MPM2.addPass(llvm::GlobalOptPass());
     MPM2.addPass(bbReNamer());
     MPM2.addPass(AddMetaData());

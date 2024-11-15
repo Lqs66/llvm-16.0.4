@@ -82,18 +82,6 @@ namespace PreModelChecking{
 
         static bool isRequired() { return true; }
     };
-
-    struct splitCalls : public llvm::PassInfoMixin<splitCalls> {
-    public:
-
-        llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM);
-
-        void splitCallSitesInBlock(llvm::Function* F);
-
-        static bool isRequired() { return true; }
-
-    };
-
     struct bbReNamer : public llvm::PassInfoMixin<bbReNamer> {
     public:
     
