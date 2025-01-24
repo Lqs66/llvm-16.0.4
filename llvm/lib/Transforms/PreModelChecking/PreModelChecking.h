@@ -101,13 +101,5 @@ namespace PreModelChecking{
         static bool isRequired() { return true; }
         void runOnModule(llvm::Module &M);
     }; 
-    
-    class CreateFuncSections : public llvm::PassInfoMixin<CreateFuncSections>{
-    public:
-        llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM);
-        
-        static bool isRequired() { return true; }
-        void runOnModule(llvm::Module &M);
-    };
 }
 #endif //PREMODELCHECKING_H
