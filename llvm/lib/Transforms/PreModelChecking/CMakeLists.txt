@@ -7,7 +7,6 @@ add_llvm_library( PreModelChecking MODULE
   # SplitCalls.cpp
   BBReNamer.cpp
   AddMetaData.cpp
-  CreateFuncSections.cpp
 
   # ADDITIONAL_HEADER_DIRS
   # ${LLVM_MAIN_INCLUDE_DIR}/llvm/Transforms
