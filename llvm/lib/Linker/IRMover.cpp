@@ -243,6 +243,32 @@ Type *TypeMapTy::get(Type *Ty) {
   return get(Ty, Visited);
 }
 
+/**
+ * Modified getTypeNamePrefix to support restoring LLVM's auto-renamed structs,
+ *  e.g., %foo.42.1.23 is restored to %foo.
+ */
+static StringRef getTypeNamePrefix(StringRef Name) {
+  while (!Name.empty()) {
+    size_t DotPos = Name.rfind('.');
+    if (DotPos == StringRef::npos || DotPos == 0 || DotPos == Name.size() - 1)
+      return Name;
+      
+    // 检查点号后面是否都是数字
+    bool AllDigits = true;
+    for (size_t i = DotPos + 1; i < Name.size(); ++i) {
+      if (!isdigit(static_cast<unsigned char>(Name[i]))) {
+        AllDigits = false;
+        break;
+      }
+    }
+    if (!AllDigits)
+      return Name;
+      
+    Name = Name.substr(0, DotPos);
+  }
+  return Name;
+}
+
 Type *TypeMapTy::get(Type *Ty, SmallPtrSet<StructType *, 8> &Visited) {
   // If we already have an entry for this type, return it.
   Type **Entry = &MappedTypes[Ty];
@@ -330,8 +356,14 @@ Type *TypeMapTy::get(Type *Ty, SmallPtrSet<StructType *, 8> &Visited) {
       return *Entry = Ty;
     }
 
+  // When processing structs, first check if a struct with the same layout exists in Dst's struct set.
+  // We added a 'Name' field in the StructTypeKeyInfo index of DstStructTypesSet,
+  // which stores the struct name without numerical suffixes (e.g., %foo.42 becomes %foo).
+  // This ensures that type mapping is not based solely on memory layout, preventing merging of different structs with the same layout.
+  // For example, if %class.A exists in Dst, %class.B with the same layout in Src will not map to %class.A.
+  // However, %class.A.2 and %class.A.3 will map to %class.A.
     if (StructType *OldT =
-            DstStructTypesSet.findNonOpaque(ElementTypes, IsPacked)) {
+            DstStructTypesSet.findNonOpaque(ElementTypes, getTypeNamePrefix(STy->getName()), IsPacked)) {
       STy->setName("");
       return *Entry = OldT;
     }
@@ -766,13 +798,13 @@ GlobalValue *IRLinker::copyGlobalValueProto(const GlobalValue *SGV,
   return NewGV;
 }
 
-static StringRef getTypeNamePrefix(StringRef Name) {
-  size_t DotPos = Name.rfind('.');
-  return (DotPos == 0 || DotPos == StringRef::npos || Name.back() == '.' ||
-          !isdigit(static_cast<unsigned char>(Name[DotPos + 1])))
-             ? Name
-             : Name.substr(0, DotPos);
-}
+// static StringRef getTypeNamePrefix(StringRef Name) {
+//   size_t DotPos = Name.rfind('.');
+//   return (DotPos == 0 || DotPos == StringRef::npos || Name.back() == '.' ||
+//           !isdigit(static_cast<unsigned char>(Name[DotPos + 1])))
+//              ? Name
+//              : Name.substr(0, DotPos);
+// }
 
 /// Loop over all of the linked values to compute type mappings.  For example,
 /// if we link "extern Foo *x" and "Foo *x = NULL", then we have two struct
@@ -1687,11 +1719,11 @@ Error IRLinker::run() {
   return linkModuleFlagsMetadata();
 }
 
-IRMover::StructTypeKeyInfo::KeyTy::KeyTy(ArrayRef<Type *> E, bool P)
-    : ETypes(E), IsPacked(P) {}
+IRMover::StructTypeKeyInfo::KeyTy::KeyTy(ArrayRef<Type *> E, StringRef N, bool P)
+    : ETypes(E), Name(N), IsPacked(P) {}
 
 IRMover::StructTypeKeyInfo::KeyTy::KeyTy(const StructType *ST)
-    : ETypes(ST->elements()), IsPacked(ST->isPacked()) {}
+    : ETypes(ST->elements()), Name(getTypeNamePrefix(ST->getName())), IsPacked(ST->isPacked()) {}
 
 bool IRMover::StructTypeKeyInfo::KeyTy::operator==(const KeyTy &That) const {
   return IsPacked == That.IsPacked && ETypes == That.ETypes;
@@ -1711,7 +1743,7 @@ StructType *IRMover::StructTypeKeyInfo::getTombstoneKey() {
 
 unsigned IRMover::StructTypeKeyInfo::getHashValue(const KeyTy &Key) {
   return hash_combine(hash_combine_range(Key.ETypes.begin(), Key.ETypes.end()),
-                      Key.IsPacked);
+                      hash_combine(Key.Name, Key.IsPacked));
 }
 
 unsigned IRMover::StructTypeKeyInfo::getHashValue(const StructType *ST) {
@@ -1752,8 +1784,9 @@ void IRMover::IdentifiedStructTypeSet::addOpaque(StructType *Ty) {
 
 StructType *
 IRMover::IdentifiedStructTypeSet::findNonOpaque(ArrayRef<Type *> ETypes,
+                                                StringRef Name,
                                                 bool IsPacked) {
-  IRMover::StructTypeKeyInfo::KeyTy Key(ETypes, IsPacked);
+  IRMover::StructTypeKeyInfo::KeyTy Key(ETypes, Name, IsPacked);
   auto I = NonOpaqueStructTypes.find_as(Key);
   return I == NonOpaqueStructTypes.end() ? nullptr : *I;
 }

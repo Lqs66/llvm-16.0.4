@@ -12,6 +12,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FunctionExtras.h"
+#include "llvm/ADT/StringRef.h"
 #include <functional>
 
 namespace llvm {
@@ -27,8 +28,9 @@ class IRMover {
   struct StructTypeKeyInfo {
     struct KeyTy {
       ArrayRef<Type *> ETypes;
+      StringRef Name; // Add struct type name as part of the key.
       bool IsPacked;
-      KeyTy(ArrayRef<Type *> E, bool P);
+      KeyTy(ArrayRef<Type *> E, StringRef Name, bool P);
       KeyTy(const StructType *ST);
       bool operator==(const KeyTy &that) const;
       bool operator!=(const KeyTy &that) const;
@@ -56,7 +58,7 @@ public:
     void addNonOpaque(StructType *Ty);
     void switchToNonOpaque(StructType *Ty);
     void addOpaque(StructType *Ty);
-    StructType *findNonOpaque(ArrayRef<Type *> ETypes, bool IsPacked);
+    StructType *findNonOpaque(ArrayRef<Type *> ETypes, StringRef Name, bool IsPacked);
     bool hasType(StructType *Ty);
   };
 
