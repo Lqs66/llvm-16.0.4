@@ -27,11 +27,14 @@ void PreModelChecking::AddMetaData::runOnModule(llvm::Module &M){
                         callInst->setMetadata("inCallID", metadataNode);
                     } else if (auto *callee = callInst->getCalledFunction()) {
                         auto calleeName = callee->getName().str();
-                        if (calleeName == "malloc" || 
+                        auto callerName = F.getName().str();
+                        if (callerName != "_Znwm" &&
+                            callerName != "_Znam" &&
+                            (calleeName == "malloc" || 
                             calleeName == "calloc" || 
                             calleeName == "realloc" || 
                             calleeName == "_Znwm" || 
-                            calleeName == "_Znam") {
+                            calleeName == "_Znam")) {
                             llvm::Constant* heapAllocIDConstant = llvm::ConstantInt::get(llvm::Type::getInt32Ty(M.getContext()), heapAllocID++);
                             auto *metadataNode = llvm::MDNode::get(M.getContext(), llvm::ConstantAsMetadata::get(heapAllocIDConstant));
                             callInst->setMetadata("heapAllocID", metadataNode);
