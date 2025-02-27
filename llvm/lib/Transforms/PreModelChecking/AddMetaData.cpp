@@ -2,7 +2,7 @@
 llvm::PreservedAnalyses PreModelChecking::AddMetaData::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
     llvm::outs() << "Add MetaData funcID for all functions...\n";
     llvm::outs() << "Add MetaData inCallID for indirect callsites...\n";
-    llvm::outs() << "Add MetaData heapAllocID for heap alloc instructions...\n";
+    // llvm::outs() << "Add MetaData heapAllocID for heap alloc instructions...\n";
     runOnModule(M);
     return llvm::PreservedAnalyses::all();
 }
