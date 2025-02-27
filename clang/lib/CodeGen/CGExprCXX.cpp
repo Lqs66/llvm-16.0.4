@@ -1552,6 +1552,28 @@ static void EnterNewDeleteCleanup(CodeGenFunction &CGF,
   CGF.initFullExprCleanup();
 }
 
+static StringRef getStructTypeNamePrefix(StringRef Name) {
+  while (!Name.empty()) {
+    size_t DotPos = Name.rfind('.');
+    if (DotPos == StringRef::npos || DotPos == 0 || DotPos == Name.size() - 1)
+      return Name;
+      
+    // 检查点号后面是否都是数字
+    bool AllDigits = true;
+    for (size_t i = DotPos + 1; i < Name.size(); ++i) {
+      if (!isdigit(static_cast<unsigned char>(Name[i]))) {
+        AllDigits = false;
+        break;
+      }
+    }
+    if (!AllDigits)
+      return Name;
+      
+    Name = Name.substr(0, DotPos);
+  }
+  return Name;
+}
+
 llvm::Value *CodeGenFunction::EmitCXXNewExpr(const CXXNewExpr *E) {
   // The element type being allocated.
   QualType allocType = getContext().getBaseElementType(E->getAllocatedType());
@@ -1649,6 +1671,34 @@ llvm::Value *CodeGenFunction::EmitCXXNewExpr(const CXXNewExpr *E) {
       if (auto *newCall = dyn_cast<llvm::CallBase>(RV.getScalarVal()))
         getDebugInfo()->addHeapAllocSiteMetadata(newCall, allocType,
                                                  E->getExprLoc());
+    /// @author lqs66      
+    /// Set !heapAllocType metadata on the call to operator new.  
+    bool isArray = E->isArray();
+    if (const RecordType* recordType = allocType.getTypePtr()->getAs<RecordType>()){
+      llvm::StructType *structType = CGM.getTypes().ConvertRecordDeclType(recordType->getDecl());
+      if (auto *newCall = dyn_cast<llvm::CallBase>(RV.getScalarVal())){
+        addHeapAllocTypeMetadata(newCall, structType->getName(), isArray, true);
+        CGM.heapAllocSTys[getStructTypeNamePrefix(structType->getName())] = structType;
+      }
+    }else if(allocType->isPointerType()){
+      if (auto *newCall = dyn_cast<llvm::CallBase>(RV.getScalarVal())){
+        addHeapAllocTypeMetadata(newCall, "ptr", isArray, false);
+      }
+    }else if(allocType->isBuiltinType()){
+      if (auto *newCall = dyn_cast<llvm::CallBase>(RV.getScalarVal())){
+        // For integer types, we create 'ixx', where xx is the bit width of the type.
+        StringRef typeName = "";
+        if (allocType->isIntegerType()){
+          unsigned bitWidth = getContext().getTypeSize(allocType);
+          typeName = llvm::StringRef("i" + std::to_string(bitWidth));
+        }else if (allocType->isBooleanType()){
+          typeName = "i8";
+        }else{
+          typeName = llvm::StringRef(allocType.getAsString());
+        }
+        addHeapAllocTypeMetadata(newCall, typeName, isArray, false);
+      }
+    }
 
     // If this was a call to a global replaceable allocation function that does
     // not take an alignment argument, the allocator is known to produce

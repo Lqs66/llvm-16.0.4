@@ -403,6 +403,23 @@ public:
     return PostAllocaInsertPt;
   }
 
+  /// @author lqs66
+  /// @brief Add metadata to the call site to indicate the type of the heap allocation.
+  void addHeapAllocTypeMetadata(llvm::CallBase *CallSite, 
+                                      StringRef typeName, 
+                                      bool isArray,
+                                      bool isStruct){
+    llvm::MDString *typeNameNode = llvm::MDString::get(CGM.getLLVMContext(), typeName);
+    llvm::Metadata *isArrayNode = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(1, isArray)));
+    llvm::Metadata *isStructNode = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(1, isStruct)));
+    llvm::SmallVector<llvm::Metadata *, 3> MDArgs;
+    MDArgs.push_back(typeNameNode);
+    MDArgs.push_back(isArrayNode);
+    MDArgs.push_back(isStructNode);
+    llvm::MDNode *MDNode = llvm::MDNode::get(CGM.getLLVMContext(), MDArgs);
+    CallSite->setMetadata("heapAllocType", MDNode);                     
+  }
+
   /// API for captured statement code generation.
   class CGCapturedStmtInfo {
   public:

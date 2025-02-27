@@ -298,6 +298,8 @@ public:
 
   typedef std::vector<Structor> CtorList;
 
+  llvm::DenseMap<StringRef, llvm::StructType*> heapAllocSTys; // Only used for generating dummy functions to allca structs.
+
 private:
   ASTContext &Context;
   const LangOptions &LangOpts;
@@ -538,6 +540,8 @@ private:
   void createOpenMPRuntime();
   void createCUDARuntime();
   void createHLSLRuntime();
+
+  void createDummyFunc(); /// @author: lqs66
 
   bool isTriviallyRecursive(const FunctionDecl *F);
   bool shouldEmitFunction(GlobalDecl GD);

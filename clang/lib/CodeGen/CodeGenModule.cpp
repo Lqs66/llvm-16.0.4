@@ -266,6 +266,38 @@ void CodeGenModule::createHLSLRuntime() {
   HLSLRuntime.reset(new CGHLSLRuntime(*this));
 }
 
+/// @author lqs66
+/// @brief Create dummy function to force the emission of the struct type.
+void CodeGenModule::createDummyFunc() {
+  // Create a dummy function to force the emission of the struct type.
+  if (heapAllocSTys.empty())
+    return;
+      
+  llvm::FunctionType *FTy = llvm::FunctionType::get(VoidTy, false);
+  llvm::Function *F = llvm::Function::Create(
+      FTy, llvm::GlobalValue::InternalLinkage, "dummy." + getModule().getModuleIdentifier(), &getModule());
+  
+  // We need to  prevent the function from being
+  // optimized out by the optimizer
+  F->addFnAttr(llvm::Attribute::NoInline);
+  F->addFnAttr(llvm::Attribute::OptimizeNone);
+  addUsedGlobal(F);
+  
+  llvm::BasicBlock *BB = llvm::BasicBlock::Create(VMContext, "entry", F);
+  llvm::IRBuilder<> Builder(BB);
+  
+  for (auto &pair : heapAllocSTys) {
+    llvm::StructType *STy = pair.second;
+    if (!STy->isOpaque()) {
+      Builder.CreateAlloca(STy);
+    }
+  }
+
+  Builder.CreateRetVoid();  
+
+}
+
+
 void CodeGenModule::addReplacement(StringRef Name, llvm::Constant *C) {
   Replacements[Name] = C;
 }
@@ -627,7 +659,7 @@ void CodeGenModule::Release() {
     addCompilerUsedGlobal(GV);
   }
 
-  emitLLVMUsed();
+  // emitLLVMUsed();
   if (SanStats)
     SanStats->finish();
 
@@ -958,6 +990,11 @@ void CodeGenModule::Release() {
   // that might affect the DLL storage class or the visibility, and
   // before anything that might act on these.
   setVisibilityFromDLLStorageClass(LangOpts, getModule());
+
+  createDummyFunc(); /// Create a dummy function to emit struct types.
+
+  emitLLVMUsed(); /// We move this to the end of the module to ensure that
+                  /// the llvm.used is emitted last.
 }
 
 void CodeGenModule::EmitOpenCLMetadata() {

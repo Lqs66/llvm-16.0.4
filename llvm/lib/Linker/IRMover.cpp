@@ -253,7 +253,6 @@ static StringRef getTypeNamePrefix(StringRef Name) {
     if (DotPos == StringRef::npos || DotPos == 0 || DotPos == Name.size() - 1)
       return Name;
       
-    // 检查点号后面是否都是数字
     bool AllDigits = true;
     for (size_t i = DotPos + 1; i < Name.size(); ++i) {
       if (!isdigit(static_cast<unsigned char>(Name[i]))) {
