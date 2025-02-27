@@ -31,6 +31,9 @@ llvm::PreservedAnalyses PreModelChecking::PreModelCheckingWarpper::run(llvm::Mod
         if(F.isDeclaration()){
             continue;
         }
+        if (F.getName().startswith("dummyAllocSTy.")) {
+            continue;
+        }
         FPM.run(F, FAM);
     }
 

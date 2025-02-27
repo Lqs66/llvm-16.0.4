@@ -12,6 +12,9 @@ void PreModelChecking::RemoveUnusedInstructions::runOnModule(llvm::Module &M) {
     do {
         changed = false;
         for (llvm::Function& F : M) {
+            if (F.getName().startswith("dummyAllocSTy.")) {
+                continue;
+            }
             for (llvm::BasicBlock& BB : F) {
                 for (auto I = BB.begin(), E = BB.end(); I != E; ++I) {
                     llvm::Instruction& inst = *I;

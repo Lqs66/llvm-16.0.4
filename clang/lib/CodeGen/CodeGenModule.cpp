@@ -274,8 +274,10 @@ void CodeGenModule::createDummyFunc() {
     return;
       
   llvm::FunctionType *FTy = llvm::FunctionType::get(VoidTy, false);
+  std::string funcName = "dummyAllocSTy." + 
+                          llvm::Twine(llvm::hash_value(getModule().getModuleIdentifier())).str();
   llvm::Function *F = llvm::Function::Create(
-      FTy, llvm::GlobalValue::InternalLinkage, "dummy." + getModule().getModuleIdentifier(), &getModule());
+      FTy, llvm::GlobalValue::InternalLinkage, funcName, &getModule());
   
   // We need to  prevent the function from being
   // optimized out by the optimizer
