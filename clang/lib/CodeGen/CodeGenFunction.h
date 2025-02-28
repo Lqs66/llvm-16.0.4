@@ -4039,6 +4039,11 @@ public:
   }
   RValue EmitCall(QualType FnType, const CGCallee &Callee, const CallExpr *E,
                   ReturnValueSlot ReturnValue, llvm::Value *Chain = nullptr);
+
+  /// @author lqs66
+  QualType GetMemAllocTypeFromSizeOf(const UnaryExprOrTypeTraitExpr *SizeOf);
+  void processTypeForHeapAlloc(QualType MemAllocType, RValue Call);
+  
   RValue EmitCallExpr(const CallExpr *E,
                       ReturnValueSlot ReturnValue = ReturnValueSlot());
   RValue EmitSimpleCallExpr(const CallExpr *E, ReturnValueSlot ReturnValue);

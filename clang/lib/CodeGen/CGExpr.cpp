@@ -26,6 +26,7 @@
 #include "clang/AST/Attr.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/NSAPI.h"
+#include "clang/AST/ParentMapContext.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/SourceManager.h"
@@ -4964,6 +4965,91 @@ RValue CodeGenFunction::EmitRValueForField(LValue LV,
   llvm_unreachable("bad evaluation kind");
 }
 
+/// @author lqs66
+/// @brief This function is used to get the struct type name prefix, such as "class.A.1.2" -> "class.A".
+static StringRef getStructTypeNamePrefix(StringRef Name) {
+  while (!Name.empty()) {
+    size_t DotPos = Name.rfind('.');
+    if (DotPos == StringRef::npos || DotPos == 0 || DotPos == Name.size() - 1)
+      return Name;
+      
+    // 检查点号后面是否都是数字
+    bool AllDigits = true;
+    for (size_t i = DotPos + 1; i < Name.size(); ++i) {
+      if (!isdigit(static_cast<unsigned char>(Name[i]))) {
+        AllDigits = false;
+        break;
+      }
+    }
+    if (!AllDigits)
+      return Name;
+      
+    Name = Name.substr(0, DotPos);
+  }
+  return Name;
+}
+
+/// @author lqs66
+/// @brief Used to get type from sizeof(XXX) expression.
+QualType CodeGenFunction::GetMemAllocTypeFromSizeOf(const UnaryExprOrTypeTraitExpr *SizeOf){
+  QualType ResultType;
+  if (SizeOf->isArgumentType())
+    ResultType = SizeOf->getArgumentType();
+  else
+    ResultType = SizeOf->getArgumentExpr()->getType();
+  
+  return ResultType.getDesugaredType(getContext());
+}
+
+/// @author lqs66
+/// Currently, we only support the following types:
+/// sizeof(A)
+/// sizeof(A) * 10
+static const UnaryExprOrTypeTraitExpr *FindSizeOfExpr(const Expr *E) {
+  E = E->IgnoreParenImpCasts();
+  if (const auto *UETTE = dyn_cast<UnaryExprOrTypeTraitExpr>(E))
+    return UETTE;
+
+  if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
+    if (const auto *UETTE = FindSizeOfExpr(BO->getLHS()))
+      return UETTE;
+    if (const auto *UETTE = FindSizeOfExpr(BO->getRHS()))
+      return UETTE;
+  }
+
+  return nullptr;
+}
+
+/// @author lqs66
+/// @brief Add metadata to the call instruction to indicate the type of the heap allocation.
+void CodeGenFunction::processTypeForHeapAlloc(QualType MemAllocType, RValue Call) {
+  if (const RecordType* recordType = MemAllocType.getTypePtr()->getAs<RecordType>()) {
+    llvm::StructType *structType = CGM.getTypes().ConvertRecordDeclType(recordType->getDecl());
+    if (auto *newCall = dyn_cast<llvm::CallBase>(Call.getScalarVal())) {
+      addHeapAllocTypeMetadata(newCall, structType->getName(), true, true);
+      CGM.heapAllocSTys[getStructTypeNamePrefix(structType->getName())] = structType;
+    }
+  } else if (MemAllocType->isPointerType()) {
+    if (auto *newCall = dyn_cast<llvm::CallBase>(Call.getScalarVal())) {
+      addHeapAllocTypeMetadata(newCall, "ptr", true, false);
+    }
+  } else if (MemAllocType->isBuiltinType()) {
+    if (auto *newCall = dyn_cast<llvm::CallBase>(Call.getScalarVal())) {
+      // For integer types, we create 'ixx', where xx is the bit width of the type.
+      StringRef typeName = "";
+      if (MemAllocType->isIntegerType()) {
+        unsigned bitWidth = getContext().getTypeSize(MemAllocType);
+        typeName = llvm::StringRef("i" + std::to_string(bitWidth));
+      } else if (MemAllocType->isBooleanType()) {
+        typeName = "i8";
+      } else {
+        typeName = llvm::StringRef(MemAllocType.getAsString());
+      }
+      addHeapAllocTypeMetadata(newCall, typeName, true, false);
+    }
+  }
+}
+
 //===--------------------------------------------------------------------===//
 //                             Expression Emission
 //===--------------------------------------------------------------------===//
@@ -4987,9 +5073,49 @@ RValue CodeGenFunction::EmitCallExpr(const CallExpr *E,
 
   CGCallee callee = EmitCallee(E->getCallee());
 
+  /// @author lqs66
+  /// @brief According to the 'Builtins.def', malloc, calloc and realloc are all builtins.
   if (callee.isBuiltin()) {
-    return EmitBuiltinExpr(callee.getBuiltinDecl(), callee.getBuiltinID(),
-                           E, ReturnValue);
+    RValue Call = EmitBuiltinExpr(callee.getBuiltinDecl(), callee.getBuiltinID(),
+    E, ReturnValue);
+    const FunctionDecl *FD = E->getDirectCallee();
+    if (!FD || !FD->getIdentifier())
+      return Call;
+    StringRef FuncName = FD->getName();
+    int argNo = -1;
+    if (FuncName == "malloc" || FuncName == "calloc") 
+      argNo = 0;
+    else if (FuncName == "realloc")
+      argNo = 1;
+    if (argNo != -1) {
+      // Check parent nodes to see if there is a type cast
+      QualType CastType;
+      bool hasCast = false;
+      for (auto p : getContext().getParents(*E)) {
+        if (auto *castExpr = p.get<CStyleCastExpr>()) {
+          CastType = castExpr->getType();
+          if (CastType->isPointerType()) {
+            hasCast = true;
+            break;
+          }
+        }
+      }
+      
+      // if exists a cast, we need to process the type of the cast
+      if (hasCast && CastType->isPointerType()) {
+        QualType PointeeType = CastType->getPointeeType();
+        processTypeForHeapAlloc(PointeeType, Call);
+      } else {
+        const Expr *SizeArg = E->getArg(argNo)->IgnoreParenImpCasts();
+        if (const UnaryExprOrTypeTraitExpr *SizeOf = FindSizeOfExpr(SizeArg)) {
+          if (SizeOf->getKind() == UETT_SizeOf) {
+            QualType MemAllocType = GetMemAllocTypeFromSizeOf(SizeOf);
+            processTypeForHeapAlloc(MemAllocType, Call);
+          }
+        }
+      }
+    }
+    return Call;
   }
 
   if (callee.isPseudoDestructor()) {
