@@ -406,17 +406,21 @@ public:
   /// @author lqs66
   /// @brief Add metadata to the call site to indicate the type of the heap allocation.
   void addHeapAllocTypeMetadata(llvm::CallBase *CallSite, 
-                                      StringRef typeName, 
-                                      bool isArray,
-                                      bool isStruct){
+                                StringRef typeName, 
+                                bool isArray,
+                                const llvm::ArrayRef<llvm::Type *>& structElements = llvm::ArrayRef<llvm::Type *>(),
+                                bool isPacked = false) {
     llvm::MDString *typeNameNode = llvm::MDString::get(CGM.getLLVMContext(), typeName);
     llvm::Metadata *isArrayNode = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(1, isArray)));
-    llvm::Metadata *isStructNode = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(1, isStruct)));
-    llvm::SmallVector<llvm::Metadata *, 3> MDArgs;
-    MDArgs.push_back(typeNameNode);
-    MDArgs.push_back(isArrayNode);
-    MDArgs.push_back(isStructNode);
-    llvm::MDNode *MDNode = llvm::MDNode::get(CGM.getLLVMContext(), MDArgs);
+    size_t hashValue = 0;
+    if (structElements.size() > 0){
+      hashValue = hash_combine(hash_combine_range(structElements.begin(), structElements.end()), 
+                                               hash_combine(typeName, isPacked));
+    }else{
+      hashValue = hash_value(typeName);
+    }
+    llvm::Metadata *HashNode = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(64, hashValue)));
+    llvm::MDNode *MDNode = llvm::MDNode::get(CGM.getLLVMContext(), {typeNameNode, isArrayNode, HashNode});
     CallSite->setMetadata("heapAllocType", MDNode);                     
   }
 

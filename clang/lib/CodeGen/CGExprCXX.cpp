@@ -1677,12 +1677,12 @@ llvm::Value *CodeGenFunction::EmitCXXNewExpr(const CXXNewExpr *E) {
     if (const RecordType* recordType = allocType.getTypePtr()->getAs<RecordType>()){
       llvm::StructType *structType = CGM.getTypes().ConvertRecordDeclType(recordType->getDecl());
       if (auto *newCall = dyn_cast<llvm::CallBase>(RV.getScalarVal())){
-        addHeapAllocTypeMetadata(newCall, structType->getName(), isArray, true);
+        addHeapAllocTypeMetadata(newCall, getStructTypeNamePrefix(structType->getName()), isArray, structType->elements(), structType->isPacked());
         CGM.heapAllocSTys[getStructTypeNamePrefix(structType->getName())] = structType;
       }
     }else if(allocType->isPointerType()){
       if (auto *newCall = dyn_cast<llvm::CallBase>(RV.getScalarVal())){
-        addHeapAllocTypeMetadata(newCall, "ptr", isArray, false);
+        addHeapAllocTypeMetadata(newCall, "ptr", isArray);
       }
     }else if(allocType->isBuiltinType()){
       if (auto *newCall = dyn_cast<llvm::CallBase>(RV.getScalarVal())){
@@ -1696,7 +1696,7 @@ llvm::Value *CodeGenFunction::EmitCXXNewExpr(const CXXNewExpr *E) {
         }else{
           typeName = llvm::StringRef(allocType.getAsString());
         }
-        addHeapAllocTypeMetadata(newCall, typeName, isArray, false);
+        addHeapAllocTypeMetadata(newCall, typeName, isArray);
       }
     }
 
