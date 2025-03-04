@@ -298,7 +298,7 @@ public:
 
   typedef std::vector<Structor> CtorList;
 
-  llvm::DenseMap<StringRef, llvm::StructType*> heapAllocSTys; // Only used for generating dummy functions to allca structs.
+  llvm::DenseMap<size_t, llvm::StructType*> heapAllocSTys; // Only used for generating dummy functions to allca structs.
 
 private:
   ASTContext &Context;
