@@ -11,6 +11,9 @@ void PreModelChecking::AddMetaData::runOnModule(llvm::Module &M){
     int funcID = 0;
     // int heapAllocID = 0;
     for(auto& F : M){
+        if (F.getName().startswith("dummyAllocSTy.")) {
+            continue;
+        }
         llvm::Constant* funcIDConstant = llvm::ConstantInt::get(llvm::Type::getInt32Ty(M.getContext()), funcID++);
         auto *fidMDNode = llvm::MDNode::get(M.getContext(), llvm::ConstantAsMetadata::get(funcIDConstant));
         F.setMetadata("funcID", fidMDNode);
