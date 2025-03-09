@@ -82,24 +82,19 @@ namespace PreModelChecking{
 
         static bool isRequired() { return true; }
     };
-    struct bbReNamer : public llvm::PassInfoMixin<bbReNamer> {
-    public:
-    
-        int bbCount = 0;
-
-        llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &);
-
-        void runRenamer(llvm::Module* M);
-
-        static bool isRequired() { return true; }
-    };
-
-    class AddMetaData : public llvm::PassInfoMixin<AddMetaData>{
+ 
+    class InfoAppender : public llvm::PassInfoMixin<InfoAppender>{
     public:
         llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM);
         
         static bool isRequired() { return true; }
-        void runOnModule(llvm::Module &M);
+        void runBBRenamer(llvm::Module &M);
+        void addMetaData(llvm::Module &M);
+        void createGlobalVarSection(llvm::Module &M);
+    private:
+        int bbID = 0;
+        int inCallID = 0;
+        int funcID = 0;
     }; 
 }
 #endif //PREMODELCHECKING_H
