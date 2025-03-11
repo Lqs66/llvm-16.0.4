@@ -42,6 +42,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Transforms/Utils/SanitizerStats.h"
+#include "llvm/CodeGen/StableHashing.h"
 
 #include <optional>
 #include <string>
@@ -5026,14 +5027,20 @@ void CodeGenFunction::processTypeForHeapAlloc(QualType MemAllocType, RValue Call
   if (const RecordType* recordType = MemAllocType.getTypePtr()->getAs<RecordType>()) {
     llvm::StructType *structType = CGM.getTypes().ConvertRecordDeclType(recordType->getDecl());
     if (auto *newCall = dyn_cast<llvm::CallBase>(Call.getScalarVal())) {
-      size_t STyHashValue = hash_combine(hash_combine_range(structType->elements().begin(), structType->elements().end()), 
-                                         hash_combine(getStructTypeNamePrefix(structType->getName()), structType->isPacked()));
+      llvm::StringRef packedStr = structType->isPacked() ? "true" : "false";
+      std::string STStr;
+      llvm::raw_string_ostream STStream(STStr);
+      structType->print(STStream);
+      llvm::StringRef STStrRef = llvm::StringRef(STStream.str());
+      uint64_t STyHashValue = llvm::stable_hash_combine(stable_hash_combine_string(STStrRef), 
+                                                  llvm::stable_hash_combine(stable_hash_combine_string(getStructTypeNamePrefix(structType->getName())), 
+                                                                            stable_hash_combine_string(packedStr)));
       addHeapAllocTypeMetadata(newCall, getStructTypeNamePrefix(structType->getName()), true, STyHashValue);
       CGM.heapAllocSTys[STyHashValue] = structType;
     }
   } else if (MemAllocType->isPointerType()) {
     if (auto *newCall = dyn_cast<llvm::CallBase>(Call.getScalarVal())) {
-      addHeapAllocTypeMetadata(newCall, "ptr", true, hash_value(StringRef("ptr")));
+      addHeapAllocTypeMetadata(newCall, "ptr", true, stable_hash_combine_string(StringRef("ptr")));
     }
   } else if (MemAllocType->isBuiltinType()) {
     if (auto *newCall = dyn_cast<llvm::CallBase>(Call.getScalarVal())) {
@@ -5047,7 +5054,7 @@ void CodeGenFunction::processTypeForHeapAlloc(QualType MemAllocType, RValue Call
       } else {
         typeName = llvm::StringRef(MemAllocType.getAsString());
       }
-      addHeapAllocTypeMetadata(newCall, typeName, true, hash_value(typeName));
+      addHeapAllocTypeMetadata(newCall, typeName, true, stable_hash_combine_string(typeName));
     }
   }
 }

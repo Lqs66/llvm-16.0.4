@@ -20,6 +20,7 @@
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "llvm/IR/Intrinsics.h"
+#include "llvm/CodeGen/StableHashing.h"
 
 using namespace clang;
 using namespace CodeGen;
@@ -1677,14 +1678,20 @@ llvm::Value *CodeGenFunction::EmitCXXNewExpr(const CXXNewExpr *E) {
     if (const RecordType* recordType = allocType.getTypePtr()->getAs<RecordType>()){
       llvm::StructType *structType = CGM.getTypes().ConvertRecordDeclType(recordType->getDecl());
       if (auto *newCall = dyn_cast<llvm::CallBase>(RV.getScalarVal())){
-        size_t STyHashValue = hash_combine(hash_combine_range(structType->elements().begin(), structType->elements().end()), 
-                                           hash_combine(getStructTypeNamePrefix(structType->getName()), structType->isPacked()));
+        llvm::StringRef packedStr = structType->isPacked() ? "true" : "false";
+        std::string STStr;
+        llvm::raw_string_ostream STStream(STStr);
+        structType->print(STStream);
+        llvm::StringRef STStrRef = llvm::StringRef(STStream.str());
+        uint64_t STyHashValue = llvm::stable_hash_combine(stable_hash_combine_string(STStrRef), 
+                                                    llvm::stable_hash_combine(stable_hash_combine_string(getStructTypeNamePrefix(structType->getName())), 
+                                                                              stable_hash_combine_string(packedStr)));
         addHeapAllocTypeMetadata(newCall, getStructTypeNamePrefix(structType->getName()), true, STyHashValue);
         CGM.heapAllocSTys[STyHashValue] = structType;
       }
     }else if(allocType->isPointerType()){
       if (auto *newCall = dyn_cast<llvm::CallBase>(RV.getScalarVal())){
-        addHeapAllocTypeMetadata(newCall, "ptr", isArray, hash_value(StringRef("ptr")));
+        addHeapAllocTypeMetadata(newCall, "ptr", isArray, stable_hash_combine_string(StringRef("ptr")));
       }
     }else if(allocType->isBuiltinType()){
       if (auto *newCall = dyn_cast<llvm::CallBase>(RV.getScalarVal())){
@@ -1698,7 +1705,7 @@ llvm::Value *CodeGenFunction::EmitCXXNewExpr(const CXXNewExpr *E) {
         }else{
           typeName = llvm::StringRef(allocType.getAsString());
         }
-        addHeapAllocTypeMetadata(newCall, typeName, isArray, hash_value(typeName));
+        addHeapAllocTypeMetadata(newCall, typeName, isArray, stable_hash_combine_string(typeName));
       }
     }
 
