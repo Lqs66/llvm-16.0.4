@@ -1553,28 +1553,6 @@ static void EnterNewDeleteCleanup(CodeGenFunction &CGF,
   CGF.initFullExprCleanup();
 }
 
-static StringRef getStructTypeNamePrefix(StringRef Name) {
-  while (!Name.empty()) {
-    size_t DotPos = Name.rfind('.');
-    if (DotPos == StringRef::npos || DotPos == 0 || DotPos == Name.size() - 1)
-      return Name;
-      
-    // 检查点号后面是否都是数字
-    bool AllDigits = true;
-    for (size_t i = DotPos + 1; i < Name.size(); ++i) {
-      if (!isdigit(static_cast<unsigned char>(Name[i]))) {
-        AllDigits = false;
-        break;
-      }
-    }
-    if (!AllDigits)
-      return Name;
-      
-    Name = Name.substr(0, DotPos);
-  }
-  return Name;
-}
-
 llvm::Value *CodeGenFunction::EmitCXXNewExpr(const CXXNewExpr *E) {
   // The element type being allocated.
   QualType allocType = getContext().getBaseElementType(E->getAllocatedType());
@@ -1675,37 +1653,72 @@ llvm::Value *CodeGenFunction::EmitCXXNewExpr(const CXXNewExpr *E) {
     /// @author lqs66      
     /// Set !heapAllocType metadata on the call to operator new.  
     bool isArray = E->isArray();
-    if (const RecordType* recordType = allocType.getTypePtr()->getAs<RecordType>()){
-      llvm::StructType *structType = CGM.getTypes().ConvertRecordDeclType(recordType->getDecl());
-      if (auto *newCall = dyn_cast<llvm::CallBase>(RV.getScalarVal())){
-        llvm::StringRef packedStr = structType->isPacked() ? "true" : "false";
-        std::string STStr;
-        llvm::raw_string_ostream STStream(STStr);
-        structType->print(STStream);
-        llvm::StringRef STStrRef = llvm::StringRef(STStream.str());
-        uint64_t STyHashValue = llvm::stable_hash_combine(stable_hash_combine_string(STStrRef), 
-                                                    llvm::stable_hash_combine(stable_hash_combine_string(getStructTypeNamePrefix(structType->getName())), 
-                                                                              stable_hash_combine_string(packedStr)));
-        addHeapAllocTypeMetadata(newCall, getStructTypeNamePrefix(structType->getName()), true, STyHashValue);
-        CGM.heapAllocSTys[STyHashValue] = structType;
-      }
-    }else if(allocType->isPointerType()){
-      if (auto *newCall = dyn_cast<llvm::CallBase>(RV.getScalarVal())){
-        addHeapAllocTypeMetadata(newCall, "ptr", isArray, stable_hash_combine_string(StringRef("ptr")));
-      }
-    }else if(allocType->isBuiltinType()){
-      if (auto *newCall = dyn_cast<llvm::CallBase>(RV.getScalarVal())){
-        // For integer types, we create 'ixx', where xx is the bit width of the type.
-        StringRef typeName = "";
-        if (allocType->isIntegerType()){
-          unsigned bitWidth = getContext().getTypeSize(allocType);
-          typeName = llvm::StringRef("i" + std::to_string(bitWidth));
-        }else if (allocType->isBooleanType()){
-          typeName = "i8";
-        }else{
-          typeName = llvm::StringRef(allocType.getAsString());
+    llvm::Type* allocTypeTy = ConvertTypeForMem(allocType);
+    uint64_t typeHashValue = hashType(allocTypeTy);
+    StringRef typeName = "";
+    switch (allocTypeTy->getTypeID()){
+      case llvm::Type::TypeID::StructTyID:
+        typeName = getStructTypeNamePrefix(dyn_cast<llvm::StructType>(allocTypeTy)->getName());
+        break;
+      case llvm::Type::TypeID::PointerTyID:
+        typeName = "ptr";
+        break;
+      case llvm::Type::TypeID::IntegerTyID:
+        typeName = StringRef("i" + std::to_string(dyn_cast<llvm::IntegerType>(allocTypeTy)->getBitWidth()));
+        break;
+      case llvm::Type::TypeID::FloatTyID:
+        typeName = "float";
+        break;
+      case llvm::Type::TypeID::DoubleTyID:
+        typeName = "double";
+        break;
+      case llvm::Type::TypeID::HalfTyID:
+        typeName = "half";
+        break;
+      case llvm::Type::TypeID::X86_FP80TyID:
+        typeName = "x86_fp80";
+        break;
+      case llvm::Type::TypeID::FP128TyID:
+        typeName = "fp128";
+        break;
+      case llvm::Type::TypeID::PPC_FP128TyID:
+        typeName = "ppc_fp128";
+        break;
+      case llvm::Type::TypeID::FixedVectorTyID:
+        typeName = "fixed_vector";
+        break;
+      case llvm::Type::TypeID::ScalableVectorTyID:
+        typeName = "scalable_vector";
+        break;
+      case llvm::Type::TypeID::ArrayTyID:
+        typeName = "array";
+        break;
+      case llvm::Type::TypeID::FunctionTyID:
+        typeName = "function";
+        break;
+      case llvm::Type::TypeID::VoidTyID:
+        typeName = "void";
+        break;
+      case llvm::Type::TypeID::LabelTyID:
+        typeName = "label";
+        break;
+      case llvm::Type::TypeID::X86_MMXTyID:
+        typeName = "x86_mmx";
+        break;
+      case llvm::Type::TypeID::TokenTyID:
+        typeName = "token";
+        break;
+      default:
+        typeName = "unknown";
+        break;
+    }
+    if (auto *newCall = dyn_cast<llvm::CallBase>(RV.getScalarVal())){
+      addHeapAllocTypeMetadata(newCall, typeName, isArray, typeHashValue);
+      if (auto *STy = dyn_cast<llvm::StructType>(allocTypeTy)){
+        if (CGM.heapAllocSTys[typeHashValue] != nullptr){
+          llvm::errs() << "Error: heapAllocType metadata already exists for type " << typeName << "\n";
         }
-        addHeapAllocTypeMetadata(newCall, typeName, isArray, stable_hash_combine_string(typeName));
+        CGM.heapAllocSTys[typeHashValue] = STy;
       }
     }
 

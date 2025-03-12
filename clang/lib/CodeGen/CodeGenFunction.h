@@ -41,6 +41,8 @@
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Utils/SanitizerStats.h"
+#include "llvm/CodeGen/StableHashing.h"
+#include "llvm/IR/TypedPointerType.h"
 #include <optional>
 
 namespace llvm {
@@ -402,6 +404,127 @@ public:
 
     return PostAllocaInsertPt;
   }
+
+  /// @author lqs66
+  /// @brief This function is used to get the struct type name prefix, such as "class.A.1.2" -> "class.A".
+  StringRef getStructTypeNamePrefix(StringRef Name) {
+    while (!Name.empty()) {
+      size_t DotPos = Name.rfind('.');
+      if (DotPos == StringRef::npos || DotPos == 0 || DotPos == Name.size() - 1)
+        return Name;
+        
+      // 检查点号后面是否都是数字
+      bool AllDigits = true;
+      for (size_t i = DotPos + 1; i < Name.size(); ++i) {
+        if (!isdigit(static_cast<unsigned char>(Name[i]))) {
+          AllDigits = false;
+          break;
+        }
+      }
+      if (!AllDigits)
+        return Name;
+        
+      Name = Name.substr(0, DotPos);
+    }
+    return Name;
+  }
+
+  /// @author lqs66
+  /// Generate hash value for type.
+  size_t hashType(llvm::Type* Ty) {
+    switch (Ty->getTypeID()) {
+      case llvm::Type::VoidTyID:      return llvm::stable_hash_combine_string("void");
+      case llvm::Type::HalfTyID:      return llvm::stable_hash_combine_string("half");
+      case llvm::Type::BFloatTyID:    return llvm::stable_hash_combine_string("bfloat");
+      case llvm::Type::FloatTyID:     return llvm::stable_hash_combine_string("float");
+      case llvm::Type::DoubleTyID:    return llvm::stable_hash_combine_string("double");
+      case llvm::Type::X86_FP80TyID:  return llvm::stable_hash_combine_string("x86_fp80");
+      case llvm::Type::FP128TyID:     return llvm::stable_hash_combine_string("fp128");
+      case llvm::Type::PPC_FP128TyID: return llvm::stable_hash_combine_string("ppc_fp128");
+      case llvm::Type::LabelTyID:     return llvm::stable_hash_combine_string("label");
+      case llvm::Type::MetadataTyID:  return llvm::stable_hash_combine_string("metadata");
+      case llvm::Type::X86_MMXTyID:   return llvm::stable_hash_combine_string("x86_mmx");
+      case llvm::Type::X86_AMXTyID:   return llvm::stable_hash_combine_string("x86_amx");
+      case llvm::Type::TokenTyID:     return llvm::stable_hash_combine_string("token");
+      case llvm::Type::IntegerTyID: {
+        std::string intType = "i" + std::to_string(cast<llvm::IntegerType>(Ty)->getBitWidth());
+        return llvm::stable_hash_combine_string(intType);
+      }
+      case llvm::Type::PointerTyID:   return llvm::stable_hash_combine_string("ptr");
+      case llvm::Type::FunctionTyID: {
+        llvm::FunctionType *FTy = cast<llvm::FunctionType>(Ty);
+        size_t retHash = hashType(FTy->getReturnType());
+        for (llvm::Type *paramTy : FTy->params()) {
+          retHash = llvm::stable_hash_combine(retHash, hashType(paramTy));
+        }
+        StringRef varArg = FTy->isVarArg() ? "varArg:true" : "varArg:false";
+        return llvm::stable_hash_combine(retHash, llvm::stable_hash_combine_string(varArg));
+      }
+      case llvm::Type::StructTyID: {
+        llvm::StructType *STy = cast<llvm::StructType>(Ty);
+    
+        if (!STy->isLiteral()) {
+          size_t nameHash = llvm::stable_hash_combine_string(getStructTypeNamePrefix(STy->getName()));
+          StringRef packed = STy->isPacked() ? "packed:true" : "packed:false";
+          size_t retHash = llvm::stable_hash_combine_string(packed);
+          for (llvm::Type *elemTy : STy->elements()) {
+            nameHash = llvm::stable_hash_combine(nameHash, hashType(elemTy));
+          }
+          return llvm::stable_hash_combine(nameHash, retHash);
+        }else{
+          StringRef packed = STy->isPacked() ? "packed:true" : "packed:false";
+          size_t retHash = llvm::stable_hash_combine_string(packed);
+          for (llvm::Type *elemTy : STy->elements()) {
+            retHash = llvm::stable_hash_combine(retHash, hashType(elemTy));
+          }
+          return retHash;
+        }
+      }
+      case llvm::Type::ArrayTyID: {
+        llvm::ArrayType *ATy = cast<llvm::ArrayType>(Ty);
+        size_t elemHash = hashType(ATy->getElementType());
+        std::string STStr;
+        llvm::raw_string_ostream STStream(STStr);
+        STStream << ATy->getNumElements();
+        return llvm::stable_hash_combine(elemHash, llvm::stable_hash_combine_string(STStream.str()));
+      }
+      case llvm::Type::FixedVectorTyID:
+      case llvm::Type::ScalableVectorTyID: {
+        llvm::VectorType *PTy = cast<llvm::VectorType>(Ty);
+        llvm::ElementCount EC = PTy->getElementCount();
+        size_t elemHash = hashType(PTy->getElementType());
+        if (EC.isScalable()) {
+          return llvm::stable_hash_combine(elemHash, llvm::stable_hash_combine_string("vscale"));
+        } else {
+          std::string STStr;
+          llvm::raw_string_ostream STStream(STStr);
+          STStream << EC.getKnownMinValue();
+          return llvm::stable_hash_combine(elemHash, llvm::stable_hash_combine_string(STStream.str()));
+        }
+      }
+      case llvm::Type::TypedPointerTyID: {
+        llvm::TypedPointerType *TPTy = cast<llvm::TypedPointerType>(Ty);
+        size_t elemHash = hashType(TPTy->getElementType());
+        return llvm::stable_hash_combine(llvm::stable_hash_combine_string("typedptr"), elemHash);
+      }
+      case llvm::Type::TargetExtTyID: {
+        llvm::TargetExtType *TETy = cast<llvm::TargetExtType>(Ty);
+        std::string STStr;
+        llvm::raw_string_ostream STStream(STStr);
+        STStream << "target(\"";
+        printEscapedString(Ty->getTargetExtName(), STStream);
+        STStream << "\"";
+        for (llvm::Type *Inner : TETy->type_params())
+        STStream << ", " << *Inner;
+        for (unsigned IntParam : TETy->int_params())
+        STStream << ", " << IntParam;
+        STStream << ")";
+        return llvm::stable_hash_combine_string(STStream.str());
+      }
+    }
+    llvm_unreachable("Invalid TypeID");
+  }
+
 
   /// @author lqs66
   /// @brief Add metadata to the call site to indicate the type of the heap allocation.
