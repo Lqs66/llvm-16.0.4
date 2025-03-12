@@ -1716,9 +1716,15 @@ llvm::Value *CodeGenFunction::EmitCXXNewExpr(const CXXNewExpr *E) {
       addHeapAllocTypeMetadata(newCall, typeName, isArray, typeHashValue);
       if (auto *STy = dyn_cast<llvm::StructType>(allocTypeTy)){
         if (CGM.heapAllocSTys[typeHashValue] != nullptr){
-          llvm::errs() << "Error: heapAllocType metadata already exists for type " << typeName << "\n";
+          if (getStructTypeNamePrefix(CGM.heapAllocSTys[typeHashValue]->getName()) != typeName){
+            llvm::errs() << "Error: heapAllocType metadata already exists for type " << *CGM.heapAllocSTys[typeHashValue] << "\n";
+            llvm::errs() << "                                                  and " << *STy << "\n";
+          }
         }
         CGM.heapAllocSTys[typeHashValue] = STy;
+        // if (STy->getName().str() == "class.uavcan::Subscriber"){
+        //   llvm::outs() << *STy << "\n";
+        // }
       }
     }
 

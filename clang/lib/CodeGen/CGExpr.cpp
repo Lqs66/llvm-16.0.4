@@ -5063,10 +5063,15 @@ void CodeGenFunction::processTypeForHeapAlloc(QualType MemAllocType, RValue Call
     addHeapAllocTypeMetadata(newCall, typeName, true, typeHashValue);
     if (auto *STy = dyn_cast<llvm::StructType>(allocTypeTy)){
       if (CGM.heapAllocSTys[typeHashValue] != nullptr){
-        if (CGM.heapAllocSTys[typeHashValue] == STy)
-          llvm::errs() << "Error: heapAllocType metadata already exists for type " << typeName << "\n";
+        if (getStructTypeNamePrefix(CGM.heapAllocSTys[typeHashValue]->getName()) != typeName){
+          llvm::errs() << "WARNING: heapAllocType metadata already exists for type " << *CGM.heapAllocSTys[typeHashValue] << "\n";
+          llvm::errs() << "                                                  and " << *STy << "\n";
+        }
       }
       CGM.heapAllocSTys[typeHashValue] = STy;
+      // if (STy->getName().str() == "class.uavcan::Subscriber"){
+      //   llvm::outs() << *STy << "\n";
+      // }
     }
   }
 }
