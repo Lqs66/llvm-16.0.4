@@ -1722,9 +1722,6 @@ llvm::Value *CodeGenFunction::EmitCXXNewExpr(const CXXNewExpr *E) {
           }
         }
         CGM.heapAllocSTys[typeHashValue] = STy;
-        // if (STy->getName().str() == "class.uavcan::Subscriber"){
-        //   llvm::outs() << *STy << "\n";
-        // }
       }
     }
 

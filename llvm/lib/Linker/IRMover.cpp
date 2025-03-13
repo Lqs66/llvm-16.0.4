@@ -866,10 +866,11 @@ void IRLinker::computeTypeMapping() {
       continue;
 
     // Check to see if the destination module has a struct with the prefix name.
-    StructType *DST = StructType::getTypeByName(ST->getContext(), STTypePrefix);
+    // Get the type with the same hash, rather than the same prefix.
+    StructType *DST = TypeMap.DstStructTypesSet.findNonOpaque(ST->elements(), STTypePrefix, ST->isPacked());
     if (!DST)
-      continue;
-
+      continue;        
+      
     // Don't use it if this actually came from the source module. They're in
     // the same LLVMContext after all. Also don't use it unless the type is
     // actually used in the destination module. This can happen in situations
