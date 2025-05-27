@@ -4966,7 +4966,7 @@ RValue CodeGenFunction::EmitRValueForField(LValue LV,
   llvm_unreachable("bad evaluation kind");
 }
 
-/// @author lqs66
+/// 
 /// @brief Used to get type from sizeof(XXX) expression.
 QualType CodeGenFunction::GetMemAllocTypeFromSizeOf(const UnaryExprOrTypeTraitExpr *SizeOf){
   QualType ResultType;
@@ -4978,7 +4978,7 @@ QualType CodeGenFunction::GetMemAllocTypeFromSizeOf(const UnaryExprOrTypeTraitEx
   return ResultType.getDesugaredType(getContext());
 }
 
-/// @author lqs66
+/// 
 /// Currently, we only support the following types:
 /// sizeof(A)
 /// sizeof(A) * 10
@@ -4997,7 +4997,7 @@ static const UnaryExprOrTypeTraitExpr *FindSizeOfExpr(const Expr *E) {
   return nullptr;
 }
 
-/// @author lqs66
+/// 
 /// @brief Add metadata to the call instruction to indicate the type of the heap allocation.
 void CodeGenFunction::processTypeForHeapAlloc(QualType MemAllocType, RValue Call) {
   llvm::Type* allocTypeTy = ConvertTypeForMem(MemAllocType);
@@ -5099,7 +5099,7 @@ RValue CodeGenFunction::EmitCallExpr(const CallExpr *E,
 
   CGCallee callee = EmitCallee(E->getCallee());
 
-  /// @author lqs66
+  /// 
   /// @brief According to the 'Builtins.def', malloc, calloc and realloc are all builtins.
   if (callee.isBuiltin()) {
     RValue Call = EmitBuiltinExpr(callee.getBuiltinDecl(), callee.getBuiltinID(),

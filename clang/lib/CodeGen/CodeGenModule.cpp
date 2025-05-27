@@ -266,7 +266,7 @@ void CodeGenModule::createHLSLRuntime() {
   HLSLRuntime.reset(new CGHLSLRuntime(*this));
 }
 
-/// @author lqs66
+/// 
 /// @brief Create dummy function to force the emission of the struct type.
 void CodeGenModule::createDummyFunc() {
   // Create a dummy function to force the emission of the struct type.

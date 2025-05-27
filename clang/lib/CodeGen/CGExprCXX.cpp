@@ -1650,7 +1650,7 @@ llvm::Value *CodeGenFunction::EmitCXXNewExpr(const CXXNewExpr *E) {
       if (auto *newCall = dyn_cast<llvm::CallBase>(RV.getScalarVal()))
         getDebugInfo()->addHeapAllocSiteMetadata(newCall, allocType,
                                                  E->getExprLoc());
-    /// @author lqs66      
+    ///       
     /// Set !heapAllocType metadata on the call to operator new.  
     bool isArray = E->isArray();
     llvm::Type* allocTypeTy = ConvertTypeForMem(allocType);

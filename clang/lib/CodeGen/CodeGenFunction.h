@@ -405,7 +405,7 @@ public:
     return PostAllocaInsertPt;
   }
 
-  /// @author lqs66
+  /// 
   /// @brief This function is used to get the struct type name prefix, such as "class.A.1.2" -> "class.A".
   StringRef getStructTypeNamePrefix(StringRef Name) {
     while (!Name.empty()) {
@@ -429,7 +429,7 @@ public:
     return Name;
   }
 
-  /// @author lqs66
+  /// 
   /// Generate hash value for type.
   size_t hashType(llvm::Type* Ty) {
     switch (Ty->getTypeID()) {
@@ -526,7 +526,7 @@ public:
   }
 
 
-  /// @author lqs66
+  /// 
   /// @brief Add metadata to the call site to indicate the type of the heap allocation.
   void addHeapAllocTypeMetadata(llvm::CallBase *CallSite, 
                                 StringRef typeName, 
@@ -4159,7 +4159,7 @@ public:
   RValue EmitCall(QualType FnType, const CGCallee &Callee, const CallExpr *E,
                   ReturnValueSlot ReturnValue, llvm::Value *Chain = nullptr);
 
-  /// @author lqs66
+  /// 
   QualType GetMemAllocTypeFromSizeOf(const UnaryExprOrTypeTraitExpr *SizeOf);
   void processTypeForHeapAlloc(QualType MemAllocType, RValue Call);
   
