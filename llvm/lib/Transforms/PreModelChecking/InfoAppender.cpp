@@ -46,7 +46,8 @@ void PreModelChecking::InfoAppender::addMetaData(llvm::Module &M){
 }
 
 void PreModelChecking::InfoAppender::createGlobalVarSection(llvm::Module &M){
-    llvm::outs() << "Move User global vars to global_vars section...\n";
+    llvm::outs() << "Move User global vars to global_vars.xx section...\n";
+    unsigned globalVarID = 0;
     for (auto &G : M.globals()) {
         if (G.isConstant()) {
             continue;
@@ -57,6 +58,10 @@ void PreModelChecking::InfoAppender::createGlobalVarSection(llvm::Module &M){
         if (G.isDeclaration()) {
             continue;
         }
-        G.setSection("global_vars");
+
+        llvm::Constant* gvarIDConstant = llvm::ConstantInt::get(llvm::Type::getInt32Ty(M.getContext()), globalVarID++);
+        auto *gvarMDNode = llvm::MDNode::get(M.getContext(), llvm::ConstantAsMetadata::get(gvarIDConstant));
+        G.setMetadata("globalVarID", gvarMDNode);
+        G.setSection("global_vars." + std::to_string(globalVarID - 1));
     }
 }
