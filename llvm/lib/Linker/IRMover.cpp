@@ -1726,7 +1726,7 @@ IRMover::StructTypeKeyInfo::KeyTy::KeyTy(const StructType *ST)
     : ETypes(ST->elements()), Name(getTypeNamePrefix(ST->getName())), IsPacked(ST->isPacked()) {}
 
 bool IRMover::StructTypeKeyInfo::KeyTy::operator==(const KeyTy &That) const {
-  return IsPacked == That.IsPacked && ETypes == That.ETypes;
+  return IsPacked == That.IsPacked && Name == That.Name && ETypes == That.ETypes;
 }
 
 bool IRMover::StructTypeKeyInfo::KeyTy::operator!=(const KeyTy &That) const {
