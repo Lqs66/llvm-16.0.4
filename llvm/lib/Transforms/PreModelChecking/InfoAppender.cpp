@@ -58,7 +58,10 @@ void PreModelChecking::InfoAppender::createGlobalVarSection(llvm::Module &M){
         if (G.isDeclaration()) {
             continue;
         }
-
+        if (G.hasSection() && G.getSection() == ".forInstrumentation") {
+            continue;
+        }
+        
         llvm::Constant* gvarIDConstant = llvm::ConstantInt::get(llvm::Type::getInt32Ty(M.getContext()), globalVarID++);
         auto *gvarMDNode = llvm::MDNode::get(M.getContext(), llvm::ConstantAsMetadata::get(gvarIDConstant));
         G.setMetadata("globalVarID", gvarMDNode);
