@@ -539,6 +539,16 @@ public:
     CallSite->setMetadata("heapAllocType", MDNode);                     
   }
 
+  /// @brief Add metadata to the call site to indicate the size of the cookie for new operator.
+  void addNewOperatorCookieMetadata(llvm::CallBase *CallSite, CharUnits CookieSize) {
+    llvm::Metadata *CookieSizeNode = llvm::ConstantAsMetadata::get(
+        llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(64, CookieSize.getQuantity())));
+    llvm::MDNode *MDNode =
+        llvm::MDNode::get(CGM.getLLVMContext(), {CookieSizeNode});
+    CallSite->setMetadata("newOpCookie", MDNode);
+  }
+
+
   /// API for captured statement code generation.
   class CGCapturedStmtInfo {
   public:

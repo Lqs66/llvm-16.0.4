@@ -1713,6 +1713,8 @@ llvm::Value *CodeGenFunction::EmitCXXNewExpr(const CXXNewExpr *E) {
         break;
     }
     if (auto *newCall = dyn_cast<llvm::CallBase>(RV.getScalarVal())){
+      CharUnits cookieSize = CalculateCookiePadding(*this, E);
+      addNewOperatorCookieMetadata(newCall, cookieSize);
       addHeapAllocTypeMetadata(newCall, typeName, isArray, typeHashValue);
       if (auto *STy = dyn_cast<llvm::StructType>(allocTypeTy)){
         if (CGM.heapAllocSTys[typeHashValue] != nullptr){
