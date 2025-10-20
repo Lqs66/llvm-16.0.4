@@ -3,6 +3,7 @@ llvm::PreservedAnalyses PreModelChecking::InfoAppender::run(llvm::Module &M, llv
     runBBRenamer(M);
     addMetaData(M);
     createGlobalVarSection(M);
+    createStringsSection(M);
     return llvm::PreservedAnalyses::all();
 }
 
@@ -66,5 +67,25 @@ void PreModelChecking::InfoAppender::createGlobalVarSection(llvm::Module &M){
         auto *gvarMDNode = llvm::MDNode::get(M.getContext(), llvm::ConstantAsMetadata::get(gvarIDConstant));
         G.setMetadata("globalVarID", gvarMDNode);
         G.setSection("global_vars." + std::to_string(globalVarID - 1));
+    }
+}
+
+void PreModelChecking::InfoAppender::createStringsSection(llvm::Module &M){
+    llvm::outs() << "Move string constant global vars to strings section...\n";
+    for (auto &G : M.globals()) {
+        if (!G.isConstant()) {
+            continue;
+        }
+        if (G.hasSection() && G.getSection() == ".forInstrumentation") {
+            continue;
+        }
+        if (G.hasInitializer()) {
+            if (llvm::isa<llvm::ConstantDataArray>(G.getInitializer())) {
+                auto* constDataArray = llvm::cast<llvm::ConstantDataArray>(G.getInitializer());
+                if (constDataArray->isString()) {
+                    G.setSection("strings");
+                }
+            }
+        }
     }
 }

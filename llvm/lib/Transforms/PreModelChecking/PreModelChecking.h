@@ -91,6 +91,7 @@ namespace PreModelChecking{
         void runBBRenamer(llvm::Module &M);
         void addMetaData(llvm::Module &M);
         void createGlobalVarSection(llvm::Module &M);
+        void createStringsSection(llvm::Module &M);
     private:
         int bbID = 0;
         int inCallID = 0;
