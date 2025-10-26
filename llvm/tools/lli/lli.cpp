@@ -448,7 +448,7 @@ int main(int argc, char **argv, char * const *envp) {
 
   ExitOnErr(loadDylibs());
 
-  if (UseJITKind == JITKind::MCJIT)
+  if (UseJITKind == JITKind::MCJIT || ForceInterpreter)
     disallowOrcOptions();
   else
     return runOrcJIT(argv[0]);
