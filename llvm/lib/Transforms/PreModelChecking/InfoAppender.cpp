@@ -1,23 +1,23 @@
 #include "PreModelChecking.h"
 llvm::PreservedAnalyses PreModelChecking::InfoAppender::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
-    runBBRenamer(M);
+    // runBBRenamer(M);
     addMetaData(M);
     createGlobalVarSection(M);
     createStringsSection(M);
     return llvm::PreservedAnalyses::all();
 }
 
-void PreModelChecking::InfoAppender::runBBRenamer(llvm::Module &M){
-    llvm::outs() << "Renaming basic blocks...\n";
-    for(auto& F : M){
-        for(auto& BB : F){
-            if (F.getName().startswith("dummyAllocSTy.")) {
-                continue;
-            }
-            BB.setName("bbNum" + std::to_string(bbID++));
-        }
-    }
-}
+// void PreModelChecking::InfoAppender::runBBRenamer(llvm::Module &M){
+//     llvm::outs() << "Renaming basic blocks...\n";
+//     for(auto& F : M){
+//         for(auto& BB : F){
+//             if (F.getName().startswith("dummyAllocSTy.")) {
+//                 continue;
+//             }
+//             BB.setName("bbNum" + std::to_string(bbID++));
+//         }
+//     }
+// }
 
 void PreModelChecking::InfoAppender::addMetaData(llvm::Module &M){
     llvm::outs() << "Add MetaData funcID for all functions...\n";
